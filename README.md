@@ -16,7 +16,7 @@ The outcome is assumed to be continuous (e.g., mean change from baseline), and m
 
 - `NMA_model.txt`: JAGS model code defining the Bayesian NMA with meta-regression.
 - `run_NMA.R`: Main R script to prepare data, run the model in JAGS, and post-process results.
-- `data.csv`: (Optional) Example dataset with study-level data.
+- `data.csv`: Example dataset with study-level data.
 - `README.md`: This file.
 
 ## 📦 Requirements
