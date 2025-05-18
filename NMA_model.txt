@@ -1,0 +1,64 @@
+# NMA Multi-arms metaregression model
+model{
+  for(i in 1:ns){ # for each study
+    u[i] ~ dnorm(0, 0.001) # baseline risk in the i-th study
+    delta[i, t[i, 1]] <- 0 # the random effect in the control group is 0
+
+    w[i, 1] <- 0
+    for(k in 1:na[i]){
+      # normal likelihood - see below the details of the distribution
+      y[i, t[i, k]] ~ dnorm(gamma[i, t[i, k]], 
+                            prec[i, t[i, k]])
+      
+      # precision as 1 / variance
+      SE[i, t[i, k]] <- sd[i, t[i, k]] / sqrt(n[i, t[i, k]])
+      v[i, t[i, k]] <- SE[i, t[i, k]]^2 
+      prec[i, t[i, k]] <- 1 / v[i, t[i, k]]	
+
+      # define gamma
+      # baseline risk + differences between treatments basic parameter (random effects) + 
+      # differences between basic coefficients (beta_ik - beta_i1) * covariate at study level
+      # all multiplied for the pooled SE to get back to the original scale
+      gamma[i, t[i, k]] <- (u[i] + delta[i, t[i, k]] + eta[i, t[i, k]] * x[i]) * pooled_SD[i]
+      
+      # components of the pooled standard deviation: numerator and denominator
+      num_pooled_SD[i, k] <- (n[i, t[i, k]] - 1) * v[i, t[i, k]]
+      den_pooled_SD[i, k] <- (n[i, t[i, k]] - 1)
+      
+      eta[i, t[i, k]] <- beta[t[i, k]] - beta[t[i, 1]]
+    }
+    
+    # pooled SE
+    pooled_SD[i] <- sqrt(sum(num_pooled_SD[i, 1:na[i]]) / sum(den_pooled_SD[i, 1:na[i]]))	
+    
+    
+    # heterogeneity prior with correction for multiarm_studies
+    for(k in 2:na[i]){
+      delta[i, t[i, k]] ~ dnorm(md[i, t[i, k]],
+                                taud[i, t[i, k]]) 
+      md[i, t[i, k]] <- d[t[i, k]] - d[t[i, 1]] + # differences
+        sw[i, k]
+      
+      taud[i, t[i, k]] <- inv.tau2 * 2 * (k-1) / k 
+      
+      # it's basically a comparison between the estimated and the true values
+      w[i, k] <- delta[i, t[i, k]] - # delta estimated 
+        (d[t[i, k]] - d[t[i, 1]]) # delta from the prior distribution of the basic parameters
+      
+      sw[i, k] <- sum(w[i, 1:(k-1)])/(k-1) # average "bias" for the i-th study at the k-th arm
+      # used to estimate the random effects
+    }
+  }
+  
+  inv.tau2 <- 1 / tau2
+  tau2 <- tau^2 
+  tau ~ dnorm(0, 1)%_%T(0, )
+  
+  # Basic parameters: priors
+  d[ref] <- 0 # the basic parameters for the reference treatment is 0
+  beta[ref] <- 0
+  for(k in c(1:(ref-1), (ref+1):nt)){ # for each treatment different from the reference
+    d[k] ~ dnorm(0, 0.01)
+    beta[k] ~ dnorm(0, 0.01)
+  }
+}
